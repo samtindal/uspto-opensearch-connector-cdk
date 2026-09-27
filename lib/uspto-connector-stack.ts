@@ -45,6 +45,13 @@ export class UsptoConnectorStack extends Stack {
       code: lambda.Code.fromAsset(VENDOR_PATH, {
         bundling: {
           image: DockerImage.fromRegistry('gradle:8-jdk21'),
+          // CDK runs the bundling container as the host UID, which has no
+          // matching /etc/passwd entry and an unwritable $HOME ("/") by
+          // default — Gradle's native-services init needs a writable home
+          // and fails with "Could not initialize native services" without it.
+          environment: {
+            HOME: '/tmp',
+          },
           command: [
             'bash',
             '-c',
