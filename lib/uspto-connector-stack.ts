@@ -10,7 +10,7 @@ import { loadConfig } from './config';
 
 const VENDOR_PATH = path.join(__dirname, '..', 'vendor', 'uspto-opensearch-connector');
 const FUNCTION_NAME = 'uspto-opensearch-connector';
-const LAMBDA_HANDLER = 'main.java.com.samtindal.usptoconnector.handler.LambdaHandler';
+const LAMBDA_HANDLER = 'com.samtindal.usptoconnector.handler.LambdaHandler';
 
 export class UsptoConnectorStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {

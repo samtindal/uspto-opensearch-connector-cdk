@@ -20,7 +20,7 @@ describe('UsptoConnectorStack', () => {
     const template = synthTemplate();
     template.hasResourceProperties('AWS::Lambda::Function', {
       Runtime: 'java21',
-      Handler: 'main.java.com.samtindal.usptoconnector.handler.LambdaHandler',
+      Handler: 'com.samtindal.usptoconnector.handler.LambdaHandler',
     });
   });
 
