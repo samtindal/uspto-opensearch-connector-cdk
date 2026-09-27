@@ -1,34 +1,89 @@
-# USPTO OpenSearch Connector CDK Package
+# USPTO OpenSearch Connector CDK
 
-## Overview
+AWS CDK v2 (TypeScript) app that deploys [`uspto-opensearch-connector`](https://github.com/samtindal/uspto-opensearch-connector) — a Java 21 Lambda that fronts a USPTO OpenSearch data store — behind an IAM-authenticated API Gateway REST API.
 
-This AWS CDK package deploys a **Lambda function** to host the USPTO OpenSearch Connector. The function allows querying and retrieving patent-related data from an OpenSearch domain. The OpenSearch domain endpoint, region, and index information are stored in environment variables for simplicity and performance.
+## Architecture
 
-## Features
+```mermaid
+flowchart LR
+    Caller["Calling application\n(assumes an IAM role)"]
+    APIGW["API Gateway REST API\nAWS_IAM authorization"]
+    Lambda["Lambda (Java 21)\nLambdaHandler"]
+    Role["Externally-owned IAM role\n(opensearchRoleArn)"]
+    OpenSearch["USPTO OpenSearch domain\n(external, public data store)"]
+    CW["CloudWatch Logs + X-Ray"]
 
-- **AWS Lambda**: The compute layer for querying the OpenSearch domain.
-- **IAM Role-Based Permissions**: Grants least-privilege access to the OpenSearch domain using IAM policies.
-- **Environment Variables**: Stores the OpenSearch domain information for runtime configuration.
-- **AWS CDK v2**: Fully utilizes the latest AWS CDK features and practices.
+    Caller -- SigV4-signed request --> APIGW
+    APIGW -- Lambda proxy integration --> Lambda
+    Lambda -- sts:AssumeRole --> Role
+    Role -- query / fetch --> OpenSearch
+    Lambda -.-> CW
+    APIGW -.-> CW
+```
 
-## Requirements
+### Routes
 
-1. **AWS CLI**: Installed and configured.
-2. **AWS CDK v2**: Installed (`npm install -g aws-cdk`).
-3. **Node.js**: Installed (for running CDK scripts).
-4. **AWS Account**: With permissions to create Lambda functions and OpenSearch domains.
+| Method | Path | Activity |
+|---|---|---|
+| GET | `/getRelatedRecordIds` | `GetRelatedRecordIdsActivity` |
+| GET | `/getRecordDetails` | `GetRecordDetailsActivity` |
 
-## Directory Structure
+Both routes require AWS SigV4-signed requests from a principal granted `execute-api:Invoke` on the API.
 
-```plaintext
-uspto-opensearch-cdk/
-├── bin/
-│   └── uspto-opensearch-cdk.ts       # CDK app entry point
+## Repository layout
+
+```
+.
+├── bin/app.ts                          # CDK app entrypoint
 ├── lib/
-│   └── uspto-opensearch-cdk-stack.ts # CDK stack definition
-├── lambda/
-│   └── handler.py                    # Python Lambda handler logic
-├── cdk.json                          # CDK configuration
-├── package.json                      # Node.js dependencies
-├── tsconfig.json                     # TypeScript configuration
-└── README.md                         # Project documentation
+│   ├── config.ts                       # reads opensearchRoleArn from CDK context
+│   └── uspto-connector-stack.ts        # Lambda + IAM + API Gateway
+├── test/                               # aws-cdk-lib/assertions unit tests
+├── vendor/uspto-opensearch-connector/  # git submodule: the Lambda's Java source
+├── .github/workflows/cdk.yml           # synth/test on PR, deploy on merge to main
+├── cdk.json / package.json / tsconfig.json / jest.config.js
+```
+
+## Prerequisites
+
+- Node.js 20+
+- Docker, running — used to build the Lambda's fat jar (via `gradle:8-jdk21`) during `cdk synth`/`cdk deploy`
+- AWS CLI configured with credentials for the target account
+- The ARN of an IAM role the Lambda can assume to reach the USPTO OpenSearch domain
+
+## Setup
+
+```bash
+git clone --recurse-submodules git@github.com:samtindal/uspto-opensearch-connector-cdk.git
+cd uspto-opensearch-connector-cdk
+npm install
+```
+
+Already cloned without submodules?
+```bash
+git submodule update --init --recursive
+```
+
+## Deploy
+
+```bash
+npx cdk deploy -c opensearchRoleArn=arn:aws:iam::<account-id>:role/<role-name>
+```
+
+`opensearchRoleArn` is required — synth fails with a clear error if it's missing.
+
+## Test
+
+```bash
+npm test
+```
+
+Unit tests never invoke Docker (they set the `aws:cdk:bundling-stacks` context flag to skip real asset bundling). To validate the real Lambda packaging end-to-end, run `npx cdk synth -c opensearchRoleArn=...` directly.
+
+## CI/CD
+
+`.github/workflows/cdk.yml` runs `npm test` and `cdk synth` on every pull request, and deploys on merge to `main` once the `AWS_DEPLOY_ROLE_ARN` and `OPENSEARCH_ROLE_ARN` secrets and the `AWS_REGION` variable are configured on the repository.
+
+## Related
+
+- [`uspto-opensearch-connector`](https://github.com/samtindal/uspto-opensearch-connector) — the Lambda's Java source, included here as a git submodule at `vendor/uspto-opensearch-connector`.
