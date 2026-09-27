@@ -26,7 +26,7 @@ jobs:
 
   deploy:
     needs: synth
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_REGION != ''
     runs-on: ubuntu-latest
     environment: production
     steps:

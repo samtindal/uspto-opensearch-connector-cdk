@@ -68,28 +68,27 @@ export class UsptoConnectorStack extends Stack {
       }),
     );
 
-    const apiGatewayCloudWatchRole = new iam.Role(this, 'ApiGatewayCloudWatchRole', {
-      assumedBy: new iam.ServicePrincipal('apigateway.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          'service-role/AmazonAPIGatewayPushToCloudWatchLogs',
-        ),
-      ],
-    });
-
-    const apiGatewayAccount = new apigateway.CfnAccount(this, 'ApiGatewayAccount', {
-      cloudWatchRoleArn: apiGatewayCloudWatchRole.roleArn,
+    const accessLogGroup = new logs.LogGroup(this, 'ApiAccessLogGroup', {
+      logGroupName: `/aws/apigateway/${FUNCTION_NAME}`,
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
     const api = new apigateway.RestApi(this, 'ConnectorApi', {
       restApiName: 'uspto-opensearch-connector',
+      // Account-level CloudWatch role for API Gateway logging, scoped to
+      // this whole AWS account/region — CDK's own construct retains it on
+      // stack destroy by default (cloudWatchRoleRemovalPolicy), so deleting
+      // this stack doesn't break logging for any other API in the account.
+      cloudWatchRole: true,
       deployOptions: {
         stageName: 'prod',
         tracingEnabled: true,
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        accessLogDestination: new apigateway.LogGroupLogDestination(accessLogGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
       },
     });
-    api.node.addDependency(apiGatewayAccount);
 
     const integration = new apigateway.LambdaIntegration(connectorFunction);
 

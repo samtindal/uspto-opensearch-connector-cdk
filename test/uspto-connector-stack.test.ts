@@ -52,6 +52,24 @@ describe('UsptoConnectorStack', () => {
     template.resourceCountIs('AWS::ApiGateway::Account', 1);
   });
 
+  test('enables API stage access logging with explicit retention', () => {
+    const template = synthTemplate();
+    template.hasResourceProperties('AWS::Logs::LogGroup', {
+      LogGroupName: '/aws/apigateway/uspto-opensearch-connector',
+      RetentionInDays: 30,
+    });
+    const accessLogGroups = template.findResources('AWS::Logs::LogGroup', {
+      Properties: { LogGroupName: '/aws/apigateway/uspto-opensearch-connector' },
+    });
+    const accessLogGroupId = Object.keys(accessLogGroups)[0];
+
+    const stages = template.findResources('AWS::ApiGateway::Stage');
+    const stage: any = Object.values(stages)[0];
+    expect(stage.Properties.AccessLogSetting.DestinationArn).toEqual({
+      'Fn::GetAtt': [accessLogGroupId, 'Arn'],
+    });
+  });
+
   test('requires IAM authorization on both routes', () => {
     const template = synthTemplate();
     const methods = template.findResources('AWS::ApiGateway::Method', {
