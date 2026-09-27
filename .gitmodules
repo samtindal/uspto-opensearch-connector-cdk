@@ -1,0 +1,3 @@
+[submodule "vendor/uspto-opensearch-connector"]
+	path = vendor/uspto-opensearch-connector
+	url = git@github.com:samtindal/uspto-opensearch-connector.git
